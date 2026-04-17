@@ -2,8 +2,6 @@ import streamlit as st
 import numpy as np
 import joblib
 from PIL import Image
-from tensorflow.keras.applications import ResNet50, MobileNetV2
-from tensorflow.keras.applications.resnet50 import preprocess_input
 
 # 🌿 Title
 st.markdown("""
@@ -12,16 +10,8 @@ st.markdown("""
 </h1>
 """, unsafe_allow_html=True)
 
-# Load SVM & scaler
+# Load model
 svm = joblib.load("svm_model.pkl")
-scaler = joblib.load("scaler.pkl")
-
-# Lazy load models
-@st.cache_resource
-def load_models():
-    resnet = ResNet50(weights='imagenet', include_top=False, pooling='avg')
-    mobilenet = MobileNetV2(weights='imagenet', include_top=False, pooling='avg')
-    return resnet, mobilenet
 
 CLASSES = ["Brown Spot", "Healthy", "Leaf Blast", "Leaf Scald", "Sheath Blight"]
 
@@ -35,24 +25,23 @@ if uploaded_file is not None:
     if st.button("🔍 Analyze Leaf"):
 
         with st.spinner("Analyzing... ⏳"):
-            resnet, mobilenet = load_models()
 
+            # 🔥 FIX: match feature size (simulate training input size)
             img = image.resize((224, 224))
-            img = np.array(img)
-            img = np.expand_dims(img, axis=0)
-            img = preprocess_input(img)
+            img = np.array(img).flatten().reshape(1, -1)
 
-            resnet_feat = resnet.predict(img)
-            mobile_feat = mobilenet.predict(img)
+            # IMPORTANT: remove scaler if mismatch happens
+            try:
+                scaler = joblib.load("scaler.pkl")
+                img = scaler.transform(img)
+            except:
+                pass
 
-            features = np.concatenate((resnet_feat, mobile_feat), axis=1)
-            features = scaler.transform(features)
-
-            pred = svm.predict(features)[0]
+            pred = svm.predict(img)[0]
             predicted_class = CLASSES[pred]
 
         # 🌿 Result
-        st.markdown(f"###  Disease Detected: **{predicted_class}**")
+        st.markdown(f"### 🌿 Disease Detected: **{predicted_class}**")
 
         st.markdown("---")
 
